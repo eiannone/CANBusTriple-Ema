@@ -24,7 +24,7 @@ public:
 
     void tick();
     Message process( Message msg );
-    void commandHandler(byte* bytes, int length);
+    void commandHandler(byte* bytes, int length, Stream* activeSerial);
 
     char* getEngineTemp();
     char* getInternalTemp();    
@@ -142,9 +142,16 @@ Message Mazda3CAN::process( Message msg )
 }
 
 
-void Mazda3CAN::commandHandler(byte* bytes, int length)
+void Mazda3CAN::commandHandler(byte* bytes, int length, Stream* activeSerial)
 {
-    if (length > 0) logMode = bytes[0];
+    if (length > 0) {
+        logMode = bytes[0];
+        activeSerial->write(COMMAND_OK);
+        activeSerial->write(NEWLINE);
+    }
+    else {
+        activeSerial->write(COMMAND_ERROR);
+    }
 }
 
 

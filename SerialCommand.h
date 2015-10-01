@@ -84,11 +84,12 @@ public:
     SerialCommand( QueueArray<Message> *q );
     void tick();
     Message process( Message msg );
-    void commandHandler(byte* bytes, int length);
+    void commandHandler(byte* bytes, int length, Stream* activeSerial);
     Stream* activeSerial;
     void printMessageToSerial(Message msg);
     void registerCommand(byte commandId, int dataLength, Middleware *cbInstance);
     void resetToBootloader();
+
 private:
     int freeRam();
     QueueArray<Message>* mainQueue;
@@ -173,7 +174,7 @@ Message SerialCommand::process( Message msg )
 }
 
 
-void SerialCommand::commandHandler(byte* bytes, int length){}
+void SerialCommand::commandHandler(byte* bytes, int length, Stream* activeSerial){}
 
 
 void SerialCommand::processCommand(byte command)
@@ -206,8 +207,7 @@ void SerialCommand::processCommand(byte command)
                 byte cmd[mw_cmds[i].dataLength];
                 int bytesRead = getCommandBody( cmd, mw_cmds[i].dataLength );
                 delay(1);
-                // (*mw_cmds[i].cb)( cmd, bytesRead );
-                mw_cmds[i].cbInstance->commandHandler(cmd, bytesRead);
+                mw_cmds[i].cbInstance->commandHandler(cmd, bytesRead, activeSerial);
                 break;
             }
             break;

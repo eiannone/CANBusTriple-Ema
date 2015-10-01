@@ -13,7 +13,7 @@ public:
 
     void tick();
     Message process( Message msg );
-    void commandHandler(byte* bytes, int length);
+    void commandHandler(byte* bytes, int length, Stream* activeSerial);
 
 private:
 	unsigned long _nextDisplayTst;	
@@ -62,18 +62,32 @@ Message Mazda3Lcd::process( Message msg )
 	return msg; 
 }
 
-void Mazda3Lcd::commandHandler(byte* bytes, int length)
+void Mazda3Lcd::commandHandler(byte* bytes, int length, Stream* activeSerial)
 {
+    if (length == 0) {
+        activeSerial->write(COMMAND_ERROR);
+        return;
+    }
+
+    if (bytes[0] == 0xFF) {
+        // Riporta l'attuale modalità di visualizzazione
+        activeSerial->print( F( "{\"event\":\"display-mode\",\"mode\":" ) );
+        activeSerial->print(displayMode);
+        activeSerial->println( F( "}" ) );
+        return;
+    }
+
     if (bytes[0] > 0x3F) {
-        // I primi due bit più significativi corrispondono ai pulsanti
+        // I primi due bit più significativi corrispondono ai pulsanti Clock e Info
         lcdButtons |= (bytes[0] >> 3);
     }
-	else {
+	else if (bytes[0] != displayMode) {
         // Gli altri bit corrispondono alla modalità di visualizzazione
-        if (bytes[0] == displayMode) return;
         cbt_settings.displayIndex = displayMode = bytes[0];
         EEPROM.write( offsetof(struct cbt_settings, displayIndex), displayMode);
     }
+    activeSerial->write(COMMAND_OK);
+    activeSerial->write(NEWLINE);    
 }
 
 void Mazda3Lcd::generateLCDText() 

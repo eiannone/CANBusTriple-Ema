@@ -13,7 +13,7 @@
 #include <QueueArray.h>
 
 #define BUILDNAME "CANBus Triple EMA"
-#define BUILD_VERSION "0.3.0"
+#define BUILD_VERSION "0.4.0"
 
 
 CANBus CANBus1(CAN1SELECT, CAN1RESET, 1, "Bus 1");
