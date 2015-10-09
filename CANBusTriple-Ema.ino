@@ -13,7 +13,7 @@
 #include <QueueArray.h>
 
 #define BUILDNAME "CANBus Triple EMA"
-#define BUILD_VERSION "0.4.0"
+#define BUILD_VERSION "0.5.0"
 
 
 CANBus CANBus1(CAN1SELECT, CAN1RESET, 1, "Bus 1");
@@ -176,16 +176,6 @@ boolean sendMessage( Message msg, CANBus bus )
     digitalWrite(BOOT_LED, HIGH);
     bus.loadFullFrame(ch, msg.length, msg.frame_id, msg.frame_data );
     bus.transmitBuffer(ch);
- //   Serial.print("BUS ");
- //   Serial.print(msg.busId);
- //   Serial.print(", 0x");
- //   Serial.print(msg.frame_id, HEX);
- //   Serial.print(", ");
- //   for(int b = 0; b < 8; b++) {
- //       Serial.print(msg.frame_data[b], HEX);
- //       Serial.print(" ");
- //   }
- //   Serial.println();
     digitalWrite(BOOT_LED, LOW);
 
     return true;

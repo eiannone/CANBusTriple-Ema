@@ -97,12 +97,12 @@ void Mazda3Lcd::generateLCDText()
 	switch(displayMode) {
 		case 1: // Barra RPM, marcia, velocità
 			// Barra RPM
-			_lcdText[0] = (_mazda->rpm > 100)? 0xDB : '_';
-			_lcdText[1] = (_mazda->rpm > 850)? 0xDB : '_';
-			_lcdText[2] = (_mazda->rpm > 1400)? 0xDB : '_';
-			_lcdText[3] = (_mazda->rpm > 1800)? 0xDB : '_';
-			_lcdText[4] = (_mazda->rpm > 2150)? 0xDB : '_';
-			_lcdText[5] = (_mazda->rpm > 2650)? 0xDB : '_';
+			_lcdText[0] = (_mazda->rpm > 800)? 0xBA : (_mazda->rpm > 600)? ']' : '_';
+			_lcdText[1] = (_mazda->rpm > 1200)? 0xBA : (_mazda->rpm > 1000)? ']' : '_';
+			_lcdText[2] = (_mazda->rpm > 1600)? 0xBA : (_mazda->rpm > 1400)? ']' : '_';
+			_lcdText[3] = (_mazda->rpm > 2000)? 0xBA : (_mazda->rpm > 1800)? ']' : '_';
+			_lcdText[4] = (_mazda->rpm > 2400)? 0xBA : (_mazda->rpm > 2200)? ']' : '_';
+			_lcdText[5] = (_mazda->rpm > 2800)? 0xBA : (_mazda->rpm > 2600)? ']' : '_';
 			_lcdText[6] = (_mazda->rpm > 3000)? ']' : ' ';
 			// Marcia
 			_lcdText[7] = formatGear(_mazda->gear);
