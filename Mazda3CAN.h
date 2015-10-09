@@ -90,15 +90,39 @@ Message Mazda3CAN::process( Message msg )
             if ((msg.frame_data[0] & 0x80) > 0) {
                 // Dashboard OFF
                 rpm = speed = 0;
-            }
-            else {
+            } else {
                 rpm = (((int)msg.frame_data[0] << 8) + msg.frame_data[1]) & 0x7FFF;
                 speed = (((int)msg.frame_data[4] << 8) + msg.frame_data[5]) & 0x7FFF;
             }
             break;
 
         case 0x231:
-            gear = msg.frame_data[0] >> 4;//((msg.frame_data[6] & 0x40) > 0)? 0xF : (msg.frame_data[0] >> 4);
+            //gear = msg.frame_data[0] >> 4;//((msg.frame_data[6] & 0x40) > 0)? 0xF : (msg.frame_data[0] >> 4);
+            if ((msg.frame_data[6] & 0x40) > 0) {
+                gear = 0xF;
+            }
+            else {
+                switch(msg.frame_data[1]) {
+                    case 0x6F:
+                        gear = (msg.frame_data[0] == 0xE1)? 0xE : 1;
+                        break;
+                    case 0xCD:
+                        gear = 2;
+                        break;
+                    case 0x87:
+                        gear = 3;
+                        break;
+                    case 0x5C:
+                        gear = 4;
+                        break;
+                    case 0x47:
+                        gear = 5;
+                        break;
+                    default:
+                        gear = 0xF;
+                        break;
+                }
+            }
             break;
 
         case 0x420: // Engine temperature, distance, fuel and dashboard

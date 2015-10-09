@@ -13,7 +13,7 @@
 #include <QueueArray.h>
 
 #define BUILDNAME "CANBus Triple EMA"
-#define BUILD_VERSION "0.4.0"
+#define BUILD_VERSION "0.5.0"
 
 
 CANBus CANBus1(CAN1SELECT, CAN1RESET, 1, "Bus 1");
@@ -89,7 +89,7 @@ void setup()
 
     // Setup CAN Busses
     for (int b = 0; b < 3; b++) {
-        busses[b].begin(); // Resets and puts bus in CONTROL mode
+        busses[b].begin(); // Resets bus and puts it in CONTROL mode
         busses[b].setClkPre(1);
         busses[b].baudConfig(cbt_settings.busCfg[b].baud);
         busses[b].setRxInt(true);
@@ -176,17 +176,7 @@ boolean sendMessage( Message msg, CANBus bus )
     digitalWrite(BOOT_LED, HIGH);
     bus.loadFullFrame(ch, msg.length, msg.frame_id, msg.frame_data );
     bus.transmitBuffer(ch);
- //   Serial.print("BUS ");
- //   Serial.print(msg.busId);
- //   Serial.print(", 0x");
- //   Serial.print(msg.frame_id, HEX);
- //   Serial.print(", ");
- //   for(int b = 0; b < 8; b++) {
- //       Serial.print(msg.frame_data[b], HEX);
- //       Serial.print(" ");
- //   }
- //   Serial.println();
-    digitalWrite(BOOT_LED, LOW);
+    digitalWrite(BOOT_LED, LOW );
 
     return true;
 }
@@ -197,20 +187,20 @@ boolean sendMessage( Message msg, CANBus bus )
 */
 void readBus( CANBus bus )
 {
-  byte rx_status = bus.readStatus();
-  if (rx_status & 0x1) readMsgFromBuffer(bus, 0, rx_status);
-  if (rx_status & 0x2) readMsgFromBuffer(bus, 1, rx_status);
+    byte rx_status = bus.readStatus();
+    if (rx_status & 0x1) readMsgFromBuffer(bus, 0, rx_status);
+    if (rx_status & 0x2) readMsgFromBuffer(bus, 1, rx_status);
 }
 
 
 void readMsgFromBuffer(CANBus bus, byte bufferId, byte rx_status)
 {
-  // Abort if readQueue is full
-  if (readQueue.isFull()) return;
+    // Abort if readQueue is full
+    if (readQueue.isFull()) return;
 
-  Message msg;
-  msg.busStatus = rx_status;
-  msg.busId = bus.busId;
-  bus.readFullFrame(bufferId, &msg.length, msg.frame_data, &msg.frame_id );
-  readQueue.push(msg);  
+    Message msg;
+    msg.busStatus = rx_status;
+    msg.busId = bus.busId;
+    bus.readFullFrame(bufferId, &msg.length, msg.frame_data, &msg.frame_id );
+    readQueue.push(msg);  
 }
