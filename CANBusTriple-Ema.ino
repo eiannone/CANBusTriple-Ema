@@ -15,7 +15,7 @@
 #define RELAY_PIN A1
 
 #define BUILDNAME "CANBus EMA"
-#define BUILD_VERSION "0.5"
+#define BUILD_VERSION "0.6"
 
 #define READ_BUFFER_SIZE 20
 #define WRITE_BUFFER_SIZE 10
