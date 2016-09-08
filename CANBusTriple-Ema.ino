@@ -9,26 +9,35 @@
 #include <SPI.h>
 #include <EEPROM.h>
 #include <CANBus.h>
-#include <Message.h>
-#include <QueueArray.h>
+#include <MessageQueue.h>
 
-#define BUILDNAME "CANBus Triple EMA"
-#define BUILD_VERSION "0.5.0"
+#define BLUE_LED A0
+#define RELAY_PIN A1
+
+#define BUILDNAME "CANBus EMA"
+#define BUILD_VERSION "0.5"
+
+#define READ_BUFFER_SIZE 20
+#define WRITE_BUFFER_SIZE 10
 
 
-CANBus CANBus1(CAN1SELECT, CAN1RESET, 1, "Bus 1");
-CANBus CANBus2(CAN2SELECT, CAN2RESET, 2, "Bus 2");
-CANBus CANBus3(CAN3SELECT, CAN3RESET, 3, "Bus 3");
-CANBus busses[] = { CANBus1, CANBus2, CANBus3 };
+CANBus busses[] = {
+    CANBus(CAN1SELECT, CAN1RESET, 1, "Bus 1"),
+    CANBus(CAN2SELECT, CAN2RESET, 2, "Bus 2"),
+    CANBus(CAN3SELECT, CAN3RESET, 3, "Bus 3")
+};
 
 #include "Middleware.h"
 #include "Settings.h"
 #include "SerialCommand.h"
 #include "Mazda3CAN.h"
 #include "Mazda3Lcd.h"
+#include "CBTButtons.h"
 
-QueueArray<Message> readQueue;
-QueueArray<Message> writeQueue;
+Message readBuffer[READ_BUFFER_SIZE];
+Message writeBuffer[WRITE_BUFFER_SIZE];
+MessageQueue readQueue(READ_BUFFER_SIZE, readBuffer);
+MessageQueue writeQueue(WRITE_BUFFER_SIZE, writeBuffer);
 
 /*
 *  Middleware Setup
@@ -37,8 +46,9 @@ QueueArray<Message> writeQueue;
 SerialCommand *serialCommand = new SerialCommand( &writeQueue );
 Mazda3CAN *mazda3Can = new Mazda3CAN();
 Mazda3Lcd *mazda3Lcd = new Mazda3Lcd(mazda3Can, &writeQueue);
+CBTButtons *cbtButtons = new CBTButtons(mazda3Lcd, BLUE_LED, RELAY_PIN);
 
-Middleware *activeMw[] = { serialCommand, mazda3Can, mazda3Lcd };
+Middleware *activeMw[] = { serialCommand, mazda3Can, mazda3Lcd, cbtButtons };
 int activeMwLength = (int)( sizeof(activeMw) / sizeof(activeMw[0]) );
 
 
@@ -46,7 +56,7 @@ void setup()
 {
     Settings::init();
     delay(1);
-    mazda3Lcd->displayMode = cbt_settings.displayIndex;
+    mazda3Lcd->init(cbt_settings.displayIndex);
 
     // Register additional serial command callback handlers
     serialCommand->registerCommand(0xA0, 1, mazda3Can);
@@ -71,6 +81,11 @@ void setup()
     *  Boot LED
     */
     pinMode( BOOT_LED, OUTPUT );
+
+    /*
+    *  Blue LED
+    */
+    pinMode( BLUE_LED, OUTPUT );
 
     pinMode( CAN1INT_D, INPUT );
     pinMode( CAN2INT_D, INPUT );
@@ -119,11 +134,14 @@ void setup()
         busses[b].setMode(cbt_settings.busCfg[b].mode);
     }
 
+    // Start button listening
+    cbtButtons->begin();
+
     for(int l = 0; l < 5; l++) {
-        digitalWrite( BOOT_LED, HIGH );
-        delay(50);
-        digitalWrite( BOOT_LED, LOW );
-        delay(50);
+        digitalWrite( BLUE_LED, HIGH );
+        delay(100);
+        digitalWrite( BLUE_LED, LOW );
+        delay(100);
     }
 
     // wdt_enable(WDTO_1S);
@@ -138,23 +156,24 @@ void loop()
     // Run all middleware ticks
     for(int i = 0; i <= activeMwLength - 1; i++) activeMw[i]->tick();
 
-    if (digitalRead(CAN1INT_D) == 0) readBus(CANBus1);
-    if (digitalRead(CAN2INT_D) == 0) readBus(CANBus2);
+    if (digitalRead(CAN1INT_D) == 0) readBus(&busses[0]);
+    if (digitalRead(CAN2INT_D) == 0) readBus(&busses[1]);
 
     // Process received CAN message through middleware
     if (!readQueue.isEmpty()) {
         Message msg = readQueue.pop();
         for(int i = 0; i < activeMwLength; i++) msg = activeMw[i]->process(msg);
-        if (msg.dispatch && !writeQueue.isFull()) writeQueue.push(msg);
+        if (msg.dispatch) writeQueue.push(msg);
     }
 
-    boolean error = false;
+    bool error = false;
     while(!writeQueue.isEmpty() && !error) {
         Message msg = writeQueue.pop();
-        error = !sendMessage(msg, busses[msg.busId - 1]);
-        delay(2);
-        // When TX Failure, add back to queue
-        if (error) writeQueue.push(msg);
+	if (msg.dispatch) {
+	    error = !sendMessage(msg, &busses[msg.busId - 1]);
+            // When TX Failure, add back to queue
+            if (error) writeQueue.push(msg);
+        }
     }
 
     // Pet the dog
@@ -166,18 +185,16 @@ void loop()
 /*
 *  Load CAN Controller buffer and set send flag
 */
-boolean sendMessage( Message msg, CANBus bus )
+bool sendMessage( Message msg, CANBus * bus )
 {
-    if( msg.dispatch == false ) return true;
-
-    int ch = bus.getNextTxBuffer();
-    if (ch < 0 || ch > 2) return false; // All TX buffers full
+    int txBuf = bus->getNextTxBuffer();
+    if (txBuf < 0 || txBuf > 2) return false; // All TX buffers full
 
     digitalWrite(BOOT_LED, HIGH);
-    bus.loadFullFrame(ch, msg.length, msg.frame_id, msg.frame_data );
-    bus.transmitBuffer(ch);
+    bus->loadFullFrame(txBuf, msg.length, msg.frame_id, msg.frame_data );
+    bus->transmitBuffer(txBuf);
     digitalWrite(BOOT_LED, LOW );
-
+    delay(1);
     return true;
 }
 
@@ -185,22 +202,27 @@ boolean sendMessage( Message msg, CANBus bus )
 /*
 *  Read Can Controller Buffer
 */
-void readBus( CANBus bus )
+void readBus( CANBus * bus )
 {
-    byte rx_status = bus.readStatus();
-    if (rx_status & 0x1) readMsgFromBuffer(bus, 0, rx_status);
-    if (rx_status & 0x2) readMsgFromBuffer(bus, 1, rx_status);
+    byte rx_status = 0x3;
+    bool bufferAvailable = true;
+    while((rx_status & 0x3) && bufferAvailable) {
+        rx_status = bus->readStatus();
+        if (rx_status & 0x1) 
+            bufferAvailable = readMsgFromBuffer(bus, 0, rx_status);
+        if ((rx_status & 0x2) && bufferAvailable) 
+            bufferAvailable = readMsgFromBuffer(bus, 1, rx_status);
+    }
 }
 
 
-void readMsgFromBuffer(CANBus bus, byte bufferId, byte rx_status)
+bool readMsgFromBuffer(CANBus * bus, byte bufferId, byte rx_status)
 {
-    // Abort if readQueue is full
-    if (readQueue.isFull()) return;
-
+    if (readQueue.isFull()) return false;
     Message msg;
     msg.busStatus = rx_status;
-    msg.busId = bus.busId;
-    bus.readFullFrame(bufferId, &msg.length, msg.frame_data, &msg.frame_id );
-    readQueue.push(msg);  
+    msg.busId = bus->busId;
+    msg.dispatch = false;
+    bus->readFullFrame(bufferId, &msg.length, msg.frame_data, &msg.frame_id );  
+    return readQueue.push(msg);
 }

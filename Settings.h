@@ -1,4 +1,5 @@
-
+#ifndef CBT_Settings_H
+#define CBT_Settings_H
 
 #include <avr/eeprom.h>
 #include <CANBus.h>
@@ -53,7 +54,8 @@ void Settings::init()
 {
   memset(&cbt_settings, 0, sizeof(cbt_settings));
   eeprom_read_block((void*)&cbt_settings, (void*)0, sizeof(cbt_settings));
-  if (cbt_settings.firstboot == 0 || cbt_settings.firstboot == 0xFF) Settings::firstbootSetup();
+  if( cbt_settings.firstboot == 0 || cbt_settings.firstboot == 0xFF )
+    Settings::firstbootSetup();
 }
 
 
@@ -221,3 +223,4 @@ void Settings::firstbootSetup()
   }
 }
 
+#endif // CBT_Settings_H

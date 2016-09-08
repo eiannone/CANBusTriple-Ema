@@ -66,14 +66,13 @@ TODO: Implement this ^^^
 #define COMMAND_TIMEOUT 100   // ms to wait before serial command timeout
 
 #include <CANBus.h>
-
+#include <MessageQueue.h>
 #include "Middleware.h"
 
 
 struct middleware_command {
     byte command;
     int dataLength;
-    // void (Middleware::*cb)(byte[], int);
     Middleware *cbInstance;
 };
 
@@ -81,10 +80,9 @@ struct middleware_command {
 class SerialCommand : public Middleware
 {
 public:
-    SerialCommand( QueueArray<Message> *q );
+    SerialCommand( MessageQueue *q );
     void tick();
-    Message process( Message msg );
-    void commandHandler(byte* bytes, int length, Stream* activeSerial);
+    Message process(Message msg);
     Stream* activeSerial;
     void printMessageToSerial(Message msg);
     void registerCommand(byte commandId, int dataLength, Middleware *cbInstance);
@@ -92,11 +90,11 @@ public:
 
 private:
     int freeRam();
-    QueueArray<Message>* mainQueue;
+    MessageQueue* mainQueue;
     void printChannelDebug();
     void printChannelDebug(CANBus);
     void processCommand(byte command);
-    int  getCommandBody( byte* cmd, int length );
+    int  getCommandBody(byte* cmd, int length);
     void clearBuffer();
     void getAndSend();
     void printSystemDebug();
@@ -124,7 +122,7 @@ int byteCount = 0;
 struct middleware_command mw_cmds[MAX_MW_CALLBACKS];
 
 
-SerialCommand::SerialCommand( QueueArray<Message> *q )
+SerialCommand::SerialCommand(MessageQueue *q )
 {
     mainQueue = q;
 
@@ -149,7 +147,7 @@ void SerialCommand::tick()
     // Serial.println(passthroughMode, BIN);
 
     // Pass-through mode for bluetooth DFU mode
-    if( passthroughMode == true ){
+    if( passthroughMode ){
         while(Serial.available()) Serial1.write(Serial.read());
         while(Serial1.available()) Serial.write(Serial1.read());
         return;
@@ -167,14 +165,11 @@ void SerialCommand::tick()
 }
 
 
-Message SerialCommand::process( Message msg )
+Message SerialCommand::process(Message msg)
 {
     if (busLogEnabled & (0x1 << (msg.busId - 1))) printMessageToSerial(msg);
     return msg;
 }
-
-
-void SerialCommand::commandHandler(byte* bytes, int length, Stream* activeSerial){}
 
 
 void SerialCommand::processCommand(byte command)
@@ -485,7 +480,8 @@ void SerialCommand::bluetooth()
 int SerialCommand::getCommandBody( byte* cmd, int length )
 {
     // Loop until requested amount of bytes are received. Needed for BT latency
-    int i = 0, timeout = COMMAND_TIMEOUT;
+    int i = 0;
+    int timeout = COMMAND_TIMEOUT;
     while( i < length ) {
         // Cannot simply use delay() because Android Bluetooth gets corrupted data
         while(activeSerial->available() == 0 && timeout > 0) {

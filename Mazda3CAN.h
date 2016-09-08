@@ -1,6 +1,7 @@
 #ifndef Mazda3CAN_H
 #define Mazda3CAN_H
 
+#include <MessageQueue.h>
 #include "Middleware.h"
 
 class Mazda3CAN : public Middleware
@@ -9,29 +10,30 @@ public:
     int rpm; 
     int speed; // 100 * Km/h
     byte gear; // 0: Neutral, 1-5: 1st-5th, E: Reverse, F: Changing
-    byte engTemp; // (T - 3.5 Â°C) * 4    
+    byte engTemp; // (T - 3.5 °C) * 4    
     bool dashboardOn; // true: ON, false: OFF
     bool engineOn; // true: ON, false: OFF
     unsigned long distance; // m * 5
     int mov; // Spostamento
     unsigned long fuel; // ???
     byte fuelLevel; // l * 4
-    byte intTemp; // (T - 3.5 Â°C) * 4
+    byte intTemp; // (T - 3.5 °C) * 4
     int steering;
     byte logMode;
 
     Mazda3CAN();
 
     void tick();
-    Message process( Message msg );
+    Message process(Message msg );
     void commandHandler(byte* bytes, int length, Stream* activeSerial);
 
-    char* getEngineTemp();
-    char* getInternalTemp();    
-    char* getDistance();
-    char* getMovement();
-    char* getFuel();
-    char* getFuelLevel();
+    char * getEngineTemp();
+    char * getInternalTemp();    
+    char * getDistance();
+    char * getMovement();
+    char * getFuel();
+    char * getFuelLevel();
+    
 private:
     char _bufString[8];
     byte _distance;
@@ -40,6 +42,7 @@ private:
     unsigned long _nextLogTst;
 
     void updateEngineDashboard(byte status);
+    byte decodeGear(const Message msg);
 };
 
 
@@ -83,7 +86,7 @@ void Mazda3CAN::tick()
 }
 
 
-Message Mazda3CAN::process( Message msg )
+Message Mazda3CAN::process(Message msg)
 {
     switch(msg.frame_id) {
         case 0x201: // RPM and vehicle speed
@@ -97,32 +100,7 @@ Message Mazda3CAN::process( Message msg )
             break;
 
         case 0x231:
-            //gear = msg.frame_data[0] >> 4;//((msg.frame_data[6] & 0x40) > 0)? 0xF : (msg.frame_data[0] >> 4);
-            if ((msg.frame_data[6] & 0x40) > 0) {
-                gear = 0xF;
-            }
-            else {
-                switch(msg.frame_data[1]) {
-                    case 0x6F:
-                        gear = (msg.frame_data[0] == 0xE1)? 0xE : 1;
-                        break;
-                    case 0xCD:
-                        gear = 2;
-                        break;
-                    case 0x87:
-                        gear = 3;
-                        break;
-                    case 0x5C:
-                        gear = 4;
-                        break;
-                    case 0x47:
-                        gear = 5;
-                        break;
-                    default:
-                        gear = 0xF;
-                        break;
-                }
-            }
+            gear = decodeGear(msg);
             break;
 
         case 0x420: // Engine temperature, distance, fuel and dashboard
@@ -141,8 +119,7 @@ Message Mazda3CAN::process( Message msg )
                 if (msg.frame_data[2] == 0 && _fuel < 245) {
                     // Reset due to engine stopping
                     _fuel = 0;
-                }
-                else {
+                } else {
                     fuel += (unsigned long)(msg.frame_data[2] + ((msg.frame_data[2] < _fuel)? 256 : 0) - _fuel);
                     _fuel = msg.frame_data[2];                    
                 }
@@ -254,5 +231,17 @@ char* Mazda3CAN::getFuelLevel()
     return dtostrf((float)fuelLevel / 4.0, 4, 1, _bufString);
 }
 
+byte Mazda3CAN::decodeGear(const Message msg)
+{
+    if ((msg.frame_data[6] & 0x40) > 0) return 0xF;
+    switch(msg.frame_data[1]) {
+        case 0x6F: return (msg.frame_data[0] == 0xE1)? 0xE : 1;
+        case 0xCD: return 2;
+        case 0x87: return 3;
+        case 0x5C: return 4;
+        case 0x47: return 5;
+        default:   return 0xF;
+    }  
+}
 
 #endif // Mazda3CAN_H
